@@ -1,7 +1,10 @@
+"use client"
 import Head from "next/head";
-import styles from "@/styles/Home.module.css";
+import useSWR from "swr";
+import { fetcher } from "../libs/request";
 
 export default function Home() {
+  const { data } = useSWR('/api/hello', fetcher)
   return (
     <>
       <Head>
@@ -11,7 +14,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div>
-        11
+        <pre>{JSON.stringify(data)}</pre>
       </div>
     </>
   );
