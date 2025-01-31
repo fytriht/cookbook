@@ -1,16 +1,21 @@
 tell application "Notes"
-   set targetFolder to folder "È£üË∞±"
-   -- set targetFolder to folder "tes1"
+   -- set targetFolder to folder "食谱"
+   set targetFolder to folder "tes1"
    repeat with theNote in notes of targetFolder
       set noteId to id of theNote
 
       ---- Create content
+      set noteProperties to { ¬
+         {label: "id", value: "noteId"}, ¬
+         {label: "name", value: name of theNote}, ¬
+         {label: "body", value: body of theNote}, ¬
+         {label: "creation date", value: creation date of theNote}, ¬
+         {label: "modification date", value: modification date of theNote} ¬
+      }
       set outputContent to ""
-      set outputContent to outputContent & "<=id=>\n" & noteId & "\n<=/=>\n"
-      set outputContent to outputContent & "<=name=>\n" & name of theNote & "\n<=/=>\n"
-      set outputContent to outputContent & "<=body=>\n" & body of theNote & "\n<=/=>\n"
-      set outputContent to outputContent & "<=creation date=>\n" & creation date of theNote & "\n<=/=>\n"
-      set outputContent to outputContent & "<=modification date=>\n" & modification date of theNote & "\n<=/=>\n"
+      repeat with p in noteProperties
+         set outputContent to outputContent & "<=" & (label of p) & "=>" & return & (value of p) & return & "<=/=>" & return
+      end repeat
       
       ---- Write to file
 
@@ -24,7 +29,7 @@ tell application "Notes"
       set filePath to scriptFolder & "/output/" & fileName
       set fileRef to open for access filePath with write permission
       try
-         write outputContent to fileRef as ¬´class utf8¬ª
+         write outputContent to fileRef as «class utf8»
          close access fileRef
       on error
          close access fileRef
