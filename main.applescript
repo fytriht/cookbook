@@ -1,12 +1,12 @@
 tell application "Notes"
-   -- set targetFolder to folder "食谱"
-   set targetFolder to folder "tes1"
+   set targetFolder to folder "食谱"
+   -- set targetFolder to folder "tes1"
    repeat with theNote in notes of targetFolder
       set noteId to id of theNote
 
       ---- Create content
       set noteProperties to { ¬
-         {label: "id", value: "noteId"}, ¬
+         {label: "id", value: noteId}, ¬
          {label: "name", value: name of theNote}, ¬
          {label: "body", value: body of theNote}, ¬
          {label: "creation date", value: creation date of theNote}, ¬

@@ -14,7 +14,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div>
-        <pre>{JSON.stringify(data)}</pre>
+        <pre>{JSON.stringify(data, null, 4)}</pre>
       </div>
     </>
   );
