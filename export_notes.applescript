@@ -7,19 +7,22 @@ on run argv
 	
 	set folderName to item 1 of argv
 	
-	-- Set export directory
+	-- Set export directory (use POSIX paths)
 	if (count of argv) >= 2 then
-		-- Use specified output directory
 		set outputDir to item 2 of argv
-		set exportFolder to outputDir & "Notes Export:"
+		if outputDir starts with "/" then
+			set exportFolderPosix to outputDir & "/Notes Export/"
+		else
+			display dialog "Please provide an absolute POSIX output directory (starting with '/') or omit it to use Desktop." buttons {"OK"}
+			return
+		end if
 	else
-		-- Default to desktop
-		set exportFolder to (path to desktop as string) & "Notes Export:"
+		set exportFolderPosix to (POSIX path of (path to desktop)) & "Notes Export/"
 	end if
 	
 	-- Create export directory
 	try
-		do shell script "mkdir -p " & quoted form of POSIX path of exportFolder
+		do shell script "mkdir -p " & quoted form of exportFolderPosix
 	end try
 	
 	-- Connect to Notes app
@@ -60,10 +63,13 @@ on run argv
 				
 				-- Generate file name
 				set fileName to cleanTitle & "-" & randomNumber & ".txt"
-				set filePath to exportFolder & fileName
+				set filePathPosix to exportFolderPosix & fileName
 				
 				-- Export as plain text file
-				set fileHandle to open for access file filePath with write permission
+				set fileHandle to open for access (POSIX file filePathPosix) with write permission
+				try
+					set eof of fileHandle to 0
+				end try
 				write noteContent to fileHandle
 				close access fileHandle
 				
@@ -72,14 +78,14 @@ on run argv
 			on error errMsg
 				-- If error, close file handle and continue
 				try
-					close access file filePath
+					close access (POSIX file filePathPosix)
 				end try
 				log "Error exporting note \"" & noteTitle & "\": " & errMsg
 			end try
 		end repeat
 		
 		-- Show completion message
-		display dialog "Successfully exported " & exportCount & " notes to \"Notes Export\" folder on desktop" buttons {"OK"}
+		display dialog "Successfully exported " & exportCount & " notes to " & exportFolderPosix buttons {"OK"}
 	end tell
 end run
 
