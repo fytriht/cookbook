@@ -1,15 +1,17 @@
 # Apple Notes Exporter
 
-A simple AppleScript to export notes from Apple Notes app to plain text files.
+A powerful AppleScript tool for exporting notes from Apple Notes app to HTML files with automatic image extraction and processing.
 
-## Features
+## Key Features
 
-- Export all notes from a specific folder in Apple Notes
-- Save as plain text format (.txt)
-- Automatic filename generation: `{original_title}-{random_6_digits}.txt`
-- Handle duplicate note titles with random suffixes
-- Support for custom output directory
-- Clean illegal characters from filenames
+- 📝 Export all notes from a specific folder in Apple Notes
+- 🌐 Save as HTML format, preserving complete note formatting and styling
+- 🖼️ **Smart Image Processing**: Automatically extract and save images as separate files
+- 📁 Auto-create structured export directories (note files + images subfolder)
+- 🔄 Intelligent duplicate filename handling (using --2, --3 suffixes)
+- 🛡️ Safe filename processing with automatic illegal character cleanup
+- 📍 Support for custom export directories
+- ⚡ Content-hash based image deduplication to avoid saving identical images
 
 ## Usage
 
@@ -18,56 +20,90 @@ A simple AppleScript to export notes from Apple Notes app to plain text files.
 osascript export_notes.applescript "folder_name"
 ```
 
-### Custom Output Directory
+### Custom Export Directory
 ```bash
-osascript export_notes.applescript "folder_name" "/path/to/output/directory"
+osascript export_notes.applescript "folder_name" "/absolute/path/to/export/directory"
 ```
 
 ## Examples
 
-Export notes from "Work Notes" folder to desktop:
+Export "Work Notes" folder to desktop:
 ```bash
 osascript export_notes.applescript "Work Notes"
 ```
 
-Export notes from "Personal" folder to Documents:
+Export "Personal Notes" folder to Documents directory:
 ```bash
-osascript export_notes.applescript "Personal" "~/Documents/"
+osascript export_notes.applescript "Personal Notes" "/Users/username/Documents"
 ```
 
 ## Parameters
 
-- `folder_name` (required): The name of the folder in Apple Notes to export
-- `output_directory` (optional): Custom output directory path. If not specified, exports to desktop
+- `folder_name` (required): Name of the folder in Apple Notes to export
+- `output_directory` (optional): Absolute path to custom export directory. If not specified, exports to desktop
 
-## Output
+## Export Output
 
-- Creates a "Notes Export" folder in the specified directory (or desktop by default)
-- Each note is saved as a separate `.txt` file
-- Filename format: `{note_title}-{6_digit_random_number}.txt`
-- Shows completion dialog with export count
+### Directory Structure
+```
+Notes Export/              # Main export folder
+├── Note Title 1.html      # Note HTML files
+├── Note Title 2--2.html   # Duplicate names get auto-suffixes
+├── Note Title 3.html
+└── images/               # Images subfolder
+    ├── img_a1b2c3d4.png  # Content-hash based image filenames
+    ├── img_e5f6g7h8.jpg
+    └── img_i9j0k1l2.gif
+```
 
-## Requirements
+### File Characteristics
+- Each note is saved as a separate HTML file
+- Filename format: `{note_title}.html` or `{note_title}--{number}.html` (for duplicates)
+- Images are named using first 8 characters of MD5 hash for stable, unique filenames
+- HTML image references are automatically updated to relative paths
 
-- macOS with Apple Notes app
+## System Requirements
+
+- macOS operating system
+- Apple Notes application
+- Python 3 (for image processing and hash calculation)
 - AppleScript support (built into macOS)
 
-## File Structure
+## Project Files
 
 ```
-export_notes.applescript    # Main export script
-README.md                  # This documentation
+cookbook/
+├── export_notes.applescript    # Main export script
+├── README.md                  # Project documentation
+└── .gitignore                # Git ignore configuration
 ```
 
 ## Error Handling
 
-- Displays error message if folder name is not provided
-- Shows error if specified folder doesn't exist in Notes
-- Continues processing other notes if individual note export fails
-- Automatically handles file access errors
+- ✅ Parameter validation: Checks for required folder name parameter
+- ✅ Folder existence check: Verifies specified Notes folder exists
+- ✅ Individual note error isolation: Failed note export doesn't affect others
+- ✅ File access error handling: Automatically handles file permissions and path issues
+- ✅ Image processing error recovery: Uses fallback naming when image extraction fails
 
-## Notes
+## Technical Features
 
-- The script will activate the Notes app during export
-- Illegal filename characters (`/`, `:`, `?`, `<`, `>`, `\`, `*`, `|`, `"`) are replaced with underscores
-- Random 6-digit suffix prevents filename conflicts for notes with identical titles
+### Image Processing Workflow
+1. 🔍 Scan HTML content for base64-encoded images
+2. 🧮 Calculate MD5 hash of image content
+3. 💾 Decode base64 data and save as separate image files
+4. 🔗 Update HTML image references to relative paths
+5. ♻️ Automatic deduplication of identical images
+
+### Filename Processing
+- Illegal character replacement: `/`, `:`, `?`, `<`, `>`, `\`, `*`, `|`, `"` → `_`
+- Duplicate name handling: Automatically adds `--2`, `--3` numeric suffixes
+- Encoding support: Full UTF-8 support for proper handling of international characters
+
+## Important Notes
+
+- 🔄 Script will activate the Notes app during export
+- 📂 Export directory must use absolute paths (starting with `/`)
+- 🖼️ Supports common image formats: PNG, JPG, GIF, etc.
+- 🔒 Image files are named based on content hash, preventing duplicate saves
+- ⚡ Uses temporary files for large base64 data to avoid command line argument length limits
