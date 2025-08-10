@@ -65,21 +65,18 @@ on run argv
 				set fileName to cleanTitle & "-" & hashSuffix & ".txt"
 				set filePathPosix to exportFolderPosix & fileName
 				
-				-- Export as plain text file
-				set fileHandle to open for access (POSIX file filePathPosix) with write permission
+				-- Export as plain text file with UTF-8 encoding
 				try
-					set eof of fileHandle to 0
+					do shell script "echo " & quoted form of noteContent & " > " & quoted form of filePathPosix
+				on error
+					-- Fallback method using printf for better UTF-8 handling
+					do shell script "/usr/bin/printf %s " & quoted form of noteContent & " > " & quoted form of filePathPosix
 				end try
-				write noteContent to fileHandle
-				close access fileHandle
 				
 				set exportCount to exportCount + 1
 				
 			on error errMsg
-				-- If error, close file handle and continue
-				try
-					close access (POSIX file filePathPosix)
-				end try
+				-- If error, log and continue
 				log "Error exporting note \"" & noteTitle & "\": " & errMsg
 			end try
 		end repeat
