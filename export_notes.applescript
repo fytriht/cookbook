@@ -1,62 +1,101 @@
+-- ==============================================================================
+-- Notes Export Script
+-- Purpose: Export notes from Apple Notes to HTML files with extracted images
+-- ==============================================================================
+
+-- Constants
+property DEFAULT_EXPORT_FOLDER_NAME : "Notes Export/"
+property IMAGES_SUBFOLDER_NAME : "images/"
+property FILE_EXTENSION : ".html"
+property FILENAME_SEPARATOR : "--"
+
+-- Main entry point
 on run argv
-	-- Get command line parameters: folder name and optional output directory
+	try
+		-- Validate and parse command line arguments
+		set parsedArgs to my parseCommandLineArguments(argv)
+		if parsedArgs is missing value then return
+		
+		set folderNameToExport to item 1 of parsedArgs
+		set exportDirectoryPath to item 2 of parsedArgs
+		
+		-- Setup export environment
+		my setupExportDirectories(exportDirectoryPath)
+		
+		-- Execute the export process
+		my executeNotesExport(folderNameToExport, exportDirectoryPath)
+		
+	on error errorMessage
+		my showErrorDialog("Export failed: " & errorMessage)
+	end try
+end run
+
+-- Parse and validate command line arguments
+on parseCommandLineArguments(argv)
 	if (count of argv) < 1 then
 		display dialog "Usage: osascript export_notes.applescript \"folder_name\" [\"output_directory\"]" buttons {"OK"}
-		return
+		return missing value
 	end if
 	
 	set folderName to item 1 of argv
+	set exportPath to my determineExportPath(argv)
 	
-	-- Set export directory (use POSIX paths)
+	if exportPath is missing value then return missing value
+	
+	return {folderName, exportPath}
+end parseCommandLineArguments
+
+-- Determine the export path from arguments or use default
+on determineExportPath(argv)
 	if (count of argv) >= 2 then
-		set outputDir to item 2 of argv
-		if outputDir starts with "/" then
-			set exportFolderPosix to outputDir & "/Notes Export/"
+		set outputDirectory to item 2 of argv
+		if outputDirectory starts with "/" then
+			return outputDirectory & "/" & DEFAULT_EXPORT_FOLDER_NAME
 		else
-			display dialog "Please provide an absolute POSIX output directory (starting with '/') or omit it to use Desktop." buttons {"OK"}
-			return
+			my showErrorDialog("Please provide an absolute POSIX output directory (starting with '/') or omit it to use Desktop.")
+			return missing value
 		end if
 	else
-		set exportFolderPosix to (POSIX path of (path to desktop)) & "Notes Export/"
+		return (POSIX path of (path to desktop)) & DEFAULT_EXPORT_FOLDER_NAME
 	end if
-	
-	-- Create export directory and images subdirectory
-	my createDirectories(exportFolderPosix)
-	
-	-- Connect to Notes app
+end determineExportPath
+
+-- Execute the main export process
+on executeNotesExport(folderName, exportPath)
 	tell application "Notes"
 		activate
-		set targetFolder to my findFolder(folderName)
+		
+		set targetFolder to my findNotesFolder(folderName)
 		if targetFolder is missing value then
-			display dialog "Folder \"" & folderName & "\" not found" buttons {"OK"}
+			my showErrorDialog("Folder \"" & folderName & "\" not found")
 			return
 		end if
 		
-		set exportCount to my exportNotes(notes of targetFolder, exportFolderPosix)
-		display dialog "Successfully exported " & exportCount & " notes to " & exportFolderPosix buttons {"OK"}
+		set exportedNotesCount to my exportAllNotesFromFolder(notes of targetFolder, exportPath)
+		display dialog "Successfully exported " & exportedNotesCount & " notes to " & exportPath buttons {"OK"}
 	end tell
-end run
+end executeNotesExport
 
 -- Create necessary directories
-on createDirectories(exportFolderPosix)
+on setupExportDirectories(exportFolderPosix)
 	try
 		do shell script "mkdir -p " & quoted form of exportFolderPosix
-		do shell script "mkdir -p " & quoted form of (exportFolderPosix & "images/")
+		do shell script "mkdir -p " & quoted form of (exportFolderPosix & IMAGES_SUBFOLDER_NAME)
 	end try
-end createDirectories
+end setupExportDirectories
 
--- Find specified folder
-on findFolder(folderName)
+-- Find specified folder by name
+on findNotesFolder(folderName)
 	tell application "Notes"
 		repeat with aFolder in folders
 			if name of aFolder is folderName then return aFolder
 		end repeat
 	end tell
 	return missing value
-end findFolder
+end findNotesFolder
 
--- Export all notes
-on exportNotes(notesList, exportFolderPosix)
+-- Export all notes in the given folder
+on exportAllNotesFromFolder(notesList, exportFolderPosix)
 	set exportCount to 0
 	set usedFileNames to {}
 	
@@ -68,7 +107,7 @@ on exportNotes(notesList, exportFolderPosix)
 			end tell
 			
 			-- Generate unique file name
-			set fileName to my generateUniqueFileName(my cleanFileName(noteTitle), usedFileNames)
+			set fileName to my generateUniqueHtmlFileName(my sanitizeFileName(noteTitle), usedFileNames)
 			set end of usedFileNames to fileName
 			
 			-- Process images and write to file
@@ -82,10 +121,10 @@ on exportNotes(notesList, exportFolderPosix)
 	end repeat
 	
 	return exportCount
-end exportNotes
+end exportAllNotesFromFolder
 
 -- Clean illegal characters from file name
-on cleanFileName(fileName)
+on sanitizeFileName(fileName)
 	set illegalChars to {"/", ":", "?", "<", ">", "\\", "*", "|", "\""}
 	set cleanName to fileName
 	
@@ -94,11 +133,11 @@ on cleanFileName(fileName)
 	end repeat
 	
 	return cleanName
-end cleanFileName
+end sanitizeFileName
 
--- Generate unique file name with auto-increment suffix for duplicates
-on generateUniqueFileName(cleanTitle, usedFileNames)
-	set baseFileName to cleanTitle & ".html"
+-- Generate unique html file name with auto-increment suffix for duplicates
+on generateUniqueHtmlFileName(cleanTitle, usedFileNames)
+	set baseFileName to cleanTitle & FILE_EXTENSION
 	
 	-- Check if base file name is already used
 	if baseFileName is not in usedFileNames then return baseFileName
@@ -106,11 +145,11 @@ on generateUniqueFileName(cleanTitle, usedFileNames)
 	-- If used, find the next available index
 	set fileIndex to 2
 	repeat
-		set indexedFileName to cleanTitle & "--" & fileIndex & ".html"
+		set indexedFileName to cleanTitle & FILENAME_SEPARATOR & fileIndex & FILE_EXTENSION
 		if indexedFileName is not in usedFileNames then return indexedFileName
 		set fileIndex to fileIndex + 1
 	end repeat
-end generateUniqueFileName
+end generateUniqueHtmlFileName
 
 -- Process images in HTML content: extract base64 images and replace with relative paths
 on processImages(htmlContent, exportFolderPosix)
@@ -132,13 +171,13 @@ on processImages(htmlContent, exportFolderPosix)
 			-- Generate stable filename and save image
 			set imageHash to my generateHash(base64Data)
 			set imageFileName to "img_" & imageHash & "." & imageFormat
-			set imageFilePath to exportFolderPosix & "images/" & imageFileName
+			set imageFilePath to exportFolderPosix & IMAGES_SUBFOLDER_NAME & imageFileName
 			
 			my saveImageIfNotExists(base64Data, imageFilePath)
 			
 			-- Replace with relative path
 			set oldTag to text imgStart thru imgEnd of modifiedContent
-			set newTag to "src=\"images/" & imageFileName & "\""
+			set newTag to "src=\"" & IMAGES_SUBFOLDER_NAME & imageFileName & "\""
 			set modifiedContent to my replaceText(modifiedContent, oldTag, newTag)
 		else
 			exit repeat
@@ -219,6 +258,11 @@ on saveImageIfNotExists(base64Data, imageFilePath)
 	end try
 end saveImageIfNotExists
 
+-- Dialog helpers
+on showErrorDialog(messageText)
+	display dialog messageText buttons {"OK"}
+end showErrorDialog
+
 -- Save base64 image
 on saveImage(base64Data, imageFilePath)
 	try
@@ -255,6 +299,7 @@ on writeTextToFile(theText, posixPath)
 	set f to open for access (POSIX file posixPath) with write permission
 	try
 		set eof of f to 0
+		-- Write as UTF-8 (using AppleScript's 'utf8' class)
 		write theText as Çclass utf8È to f starting at 0
 	on error errMsg number errNum
 		try
