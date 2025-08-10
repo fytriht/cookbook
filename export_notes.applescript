@@ -55,14 +55,14 @@ on run argv
 				set noteTitle to name of aNote
 				set noteContent to body of aNote
 				
-				-- Generate 6-digit random number
-				set randomNumber to my generateRandomNumber()
+				-- Generate stable hash of content
+				set hashSuffix to my computeContentHash(noteContent)
 				
 				-- Clean illegal characters from title
 				set cleanTitle to my cleanFileName(noteTitle)
 				
 				-- Generate file name
-				set fileName to cleanTitle & "-" & randomNumber & ".txt"
+				set fileName to cleanTitle & "-" & hashSuffix & ".txt"
 				set filePathPosix to exportFolderPosix & fileName
 				
 				-- Export as plain text file
@@ -89,15 +89,6 @@ on run argv
 	end tell
 end run
 
--- Function to generate 6-digit random number
-on generateRandomNumber()
-	set randomNum to ""
-	repeat 6 times
-		set randomNum to randomNum & (random number from 0 to 9)
-	end repeat
-	return randomNum
-end generateRandomNumber
-
 -- Clean illegal characters from file name
 on cleanFileName(fileName)
 	set illegalChars to {"/", ":", "?", "<", ">", "\\", "*", "|", "\""}
@@ -113,3 +104,9 @@ on cleanFileName(fileName)
 	set AppleScript's text item delimiters to ""
 	return cleanName
 end cleanFileName
+
+on computeContentHash(theText)
+	set cmd to "/usr/bin/printf %s " & quoted form of theText & " | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'"
+	set fullHash to do shell script cmd
+	return text 1 thru 8 of fullHash
+end computeContentHash
