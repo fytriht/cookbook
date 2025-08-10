@@ -62,7 +62,7 @@ on run argv
 				set cleanTitle to my cleanFileName(noteTitle)
 				
 				-- Generate file name
-				set fileName to cleanTitle & "-" & hashSuffix & ".txt"
+				set fileName to cleanTitle & "-" & hashSuffix & ".html"
 				set filePathPosix to exportFolderPosix & fileName
 				
 				-- Export as plain text file with UTF-8 encoding
