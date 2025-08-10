@@ -53,10 +53,10 @@ on run argv
 				set noteContent to body of aNote
 				
 				-- Generate 6-digit random number
-				set randomNumber to generateRandomNumber()
+				set randomNumber to my generateRandomNumber()
 				
 				-- Clean illegal characters from title
-				set cleanTitle to cleanFileName(noteTitle)
+				set cleanTitle to my cleanFileName(noteTitle)
 				
 				-- Generate file name
 				set fileName to cleanTitle & "-" & randomNumber & ".txt"
