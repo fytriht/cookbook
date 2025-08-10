@@ -47,6 +47,7 @@ on run argv
 		-- Get all notes in the folder
 		set notesList to notes of targetFolder
 		set exportCount to 0
+		set usedFileNames to {}
 		
 		-- Loop through each note
 		repeat with aNote in notesList
@@ -55,23 +56,18 @@ on run argv
 				set noteTitle to name of aNote
 				set noteContent to body of aNote
 				
-				-- Generate stable hash of content
-				set hashSuffix to my computeContentHash(noteContent)
-				
 				-- Clean illegal characters from title
 				set cleanTitle to my cleanFileName(noteTitle)
 				
-				-- Generate file name
-				set fileName to cleanTitle & "-" & hashSuffix & ".html"
+				-- Generate unique file name
+				set fileName to my generateUniqueFileName(cleanTitle, usedFileNames)
 				set filePathPosix to exportFolderPosix & fileName
 				
-				-- Export as plain text file with UTF-8 encoding
-				try
-					do shell script "echo " & quoted form of noteContent & " > " & quoted form of filePathPosix
-				on error
-					-- Fallback method using printf for better UTF-8 handling
-					do shell script "/usr/bin/printf %s " & quoted form of noteContent & " > " & quoted form of filePathPosix
-				end try
+				-- Add to used file names list
+				set end of usedFileNames to fileName
+
+				-- Write content to file using AppleScript file I/O (UTF-8) to bypass shell arg length limits
+				my writeTextToFile(noteContent, filePathPosix)
 				
 				set exportCount to exportCount + 1
 				
@@ -102,8 +98,56 @@ on cleanFileName(fileName)
 	return cleanName
 end cleanFileName
 
-on computeContentHash(theText)
-	set cmd to "/usr/bin/printf %s " & quoted form of theText & " | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'"
-	set fullHash to do shell script cmd
-	return text 1 thru 8 of fullHash
-end computeContentHash
+-- Generate unique file name with auto-increment suffix for duplicates
+on generateUniqueFileName(cleanTitle, usedFileNames)
+	set baseFileName to cleanTitle & ".html"
+	
+	-- Check if base file name is already used
+	set isUsed to false
+	repeat with i from 1 to count of usedFileNames
+		if item i of usedFileNames = baseFileName then
+			set isUsed to true
+			exit repeat
+		end if
+	end repeat
+	
+	-- If not used, return base file name
+	if not isUsed then
+		return baseFileName
+	end if
+	
+	-- If used, find the next available index
+	set fileIndex to 2
+	repeat
+		set indexedFileName to cleanTitle & "--" & fileIndex & ".html"
+		set isUsed to false
+		
+		repeat with i from 1 to count of usedFileNames
+			if item i of usedFileNames = indexedFileName then
+				set isUsed to true
+				exit repeat
+			end if
+		end repeat
+		
+		if not isUsed then
+			return indexedFileName
+		end if
+		
+		set fileIndex to fileIndex + 1
+	end repeat
+end generateUniqueFileName
+
+-- Write text to a file at POSIX path as UTF-8, replacing existing contents
+on writeTextToFile(theText, posixPath)
+	set f to open for access (POSIX file posixPath) with write permission
+	try
+		set eof of f to 0
+		write theText as Çclass utf8È to f starting at 0
+	on error errMsg number errNum
+		try
+			close access f
+		end try
+		error errMsg number errNum
+	end try
+	close access f
+end writeTextToFile
