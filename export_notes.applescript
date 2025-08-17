@@ -98,12 +98,14 @@ end findNotesFolder
 on exportAllNotesFromFolder(notesList, exportFolderPosix)
 	set exportCount to 0
 	set usedFileNames to {}
+	set metaData to {}
 	
 	repeat with aNote in notesList
 		try
 			tell application "Notes"
 				set noteTitle to name of aNote
 				set noteContent to body of aNote
+				set noteId to id of aNote
 			end tell
 			
 			-- Generate unique file name
@@ -114,11 +116,19 @@ on exportAllNotesFromFolder(notesList, exportFolderPosix)
 			set processedContent to my processImages(noteContent, exportFolderPosix)
 			my writeTextToFile(processedContent, exportFolderPosix & fileName)
 			
+			-- Collect metadata
+			set noteDeeplink to my generateDeeplink(noteId)
+			set noteRecord to {noteId, noteTitle, noteDeeplink}
+			set metaData to metaData & {noteRecord}
+			
 			set exportCount to exportCount + 1
 		on error errMsg
 			log "Error exporting note \"" & noteTitle & "\": " & errMsg
 		end try
 	end repeat
+	
+	-- Generate meta.json file
+	my generateMetaJsonFile(metaData, exportFolderPosix)
 	
 	return exportCount
 end exportAllNotesFromFolder
@@ -293,6 +303,97 @@ on replaceText(theText, searchString, replacementString)
 	set AppleScript's text item delimiters to ""
 	return newText
 end replaceText
+
+-- Generate deeplink for a note
+on generateDeeplink(noteId)
+	try
+		-- Extract numeric ID from the note ID (format: x-coredata://...ICNote/p4516)
+		set pStart to my findText(noteId, "/ICNote/p")
+		if pStart > 0 then
+			-- Extract the numeric part after /ICNote/p
+			set numericId to text (pStart + 9) thru -1 of noteId
+			-- Query SQLite to get the real identifier
+			set realIdentifier to my queryNoteIdentifier(numericId)
+			if realIdentifier is not "" then
+				return "applenotes:note/" & realIdentifier
+			else
+				return "applenotes:note/unknown"
+			end if
+		else
+			return "applenotes:note/unknown"
+		end if
+	on error
+		return "applenotes:note/unknown"
+	end try
+end generateDeeplink
+
+-- Query SQLite database to get note identifier
+on queryNoteIdentifier(numericId)
+	try
+		set dbPath to (path to home folder as string) & "Library:Group Containers:group.com.apple.notes:NoteStore.sqlite"
+		set dbPath to POSIX path of dbPath
+		set sqlQuery to "SELECT ZIDENTIFIER FROM ZICCLOUDSYNCINGOBJECT WHERE Z_PK = '" & numericId & "';"
+		set shellCommand to "/usr/bin/sqlite3 " & quoted form of dbPath & " " & quoted form of sqlQuery
+		set queryResult to do shell script shellCommand
+		-- Remove any whitespace/newlines
+		set queryResult to my trimString(queryResult)
+		return queryResult
+	on error errMsg
+		log "Error querying note identifier for ID " & numericId & ": " & errMsg
+		return ""
+	end try
+end queryNoteIdentifier
+
+-- Trim whitespace from string
+on trimString(inputString)
+	try
+		set trimmedString to do shell script "echo " & quoted form of inputString & " | xargs"
+		return trimmedString
+	on error
+		return inputString
+	end try
+end trimString
+
+-- Generate meta.json file
+on generateMetaJsonFile(metaDataList, exportFolderPosix)
+	try
+		set metaFilePath to exportFolderPosix & "meta.json"
+		
+		-- Build JSON content using AppleScript string concatenation
+		set jsonContent to "{"
+		set itemCount to count of metaDataList
+		set currentItem to 0
+		
+		repeat with noteRecord in metaDataList
+			set currentItem to currentItem + 1
+			set noteId to item 1 of noteRecord
+			set noteTitle to item 2 of noteRecord
+			set noteDeeplink to item 3 of noteRecord
+			
+			-- Escape quotes in title
+			set escapedTitle to my replaceText(noteTitle, "\"", "\\\"")
+			
+			-- Add JSON entry
+			set jsonContent to jsonContent & "    \"" & noteId & "\": {" & return
+			set jsonContent to jsonContent & "        \"title\": \"" & escapedTitle & "\"," & return
+			set jsonContent to jsonContent & "        \"deeplink\": \"" & noteDeeplink & "\"" & return
+			set jsonContent to jsonContent & "    }"
+			
+			-- Add comma if not last item
+			if currentItem < itemCount then
+				set jsonContent to jsonContent & ","
+			end if
+			set jsonContent to jsonContent & return
+		end repeat
+		
+		set jsonContent to jsonContent & "}"
+		
+		my writeTextToFile(jsonContent, metaFilePath)
+		
+	on error errMsg
+		log "Error generating meta.json: " & errMsg
+	end try
+end generateMetaJsonFile
 
 -- Write text to a file at POSIX path as UTF-8, replacing existing contents
 on writeTextToFile(theText, posixPath)
